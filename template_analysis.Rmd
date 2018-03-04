@@ -1,0 +1,60 @@
+---
+title: "Analyze Finanical Report Data Template"
+author: "Jason Wang"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    number_sections: yes
+    df_print: paged
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+params:
+    id_stock: "002460"
+    date_report: "2017-09-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F, fig.width=10, fig.align = 'center', comment=NA, autodep=T, echo = FALSE)
+#rm(list=ls())
+library(DBI)
+source("./CODE/LIB/lib_generic.R")
+source("./CODE/LIB/lib_analy_finan_data.R")
+```
+
+
+
+```{r import_data, include=FALSE}
+###################### data assumptions #######################
+## FIXED DB connection
+conn_db <- dbConnect(RSQLite::SQLite(), paste0("./DATA/CLEAN/", "db_finan_report.sqlite"))
+## collect metadata
+meta_bal <- as_tibble(dbReadTable(conn_db, "meta_ts_bal_sheet"))
+meta_pnl <- as_tibble(dbReadTable(conn_db, "meta_ts_income_stat"))
+meta_cash <- as_tibble(dbReadTable(conn_db, "meta_ts_cash_flow"))
+## balance sheet collected: CHECK c("SECCODE", "F001D")
+df_bal_cuml <- dbGetQuery(conn_db, paste0("SELECT * FROM ", "tabl_ts_bal_sheet", 
+                                          " WHERE SECCODE = '", params$id_stock, "'")) %>% 
+  as_tibble() %>% 
+  arrange(F001D)
+## income statement collected: CHECK c("SECCODE", "F001D")
+df_pnl_cuml <- dbGetQuery(conn_db, paste0("SELECT * FROM ", "tabl_ts_income_stat", 
+                                          " WHERE SECCODE = '", params$id_stock, "'")) %>% 
+  as_tibble() %>% 
+  arrange(F001D)
+## cash flow collected: CHECK c("SECCODE", "F001D")
+df_cash_cuml <- dbGetQuery(conn_db, paste0("SELECT * FROM ", "tabl_ts_cash_flow", 
+                                          " WHERE SECCODE = '", params$id_stock, "'")) %>% 
+  as_tibble() %>% 
+  arrange(F001D)
+############################################## assumptions ###
+### checks
+stopifnot(identical(sort(names(df_bal_cuml)), sort(meta_bal$varR)))
+stopifnot(identical(sort(names(df_cash_cuml)), sort(meta_cash$varR)))
+stopifnot(identical(sort(names(df_pnl_cuml)), sort(meta_pnl$varR)))
+### get last defined qtr back
+num_qtr_back <- 6
+date_qtr_back <- seq(as.Date(as.character(params$date_report)) + 1,
+                   length.out=as.numeric(num_qtr_back), by='-1 quarter') - 1 
+date_qtr_back <- as.character(date_qtr_back)
+```
