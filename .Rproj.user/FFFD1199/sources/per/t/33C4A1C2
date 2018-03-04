@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1520200142877.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3914212404",
+    "id" : "33C4A1C2",
+    "lastKnownWriteTime" : 1520200030,
+    "last_content_update" : 1520200030,
+    "path" : "D:/Project_R_Py/Analy_Finan_Report/CODE/oneoff_setup_sqlite.R",
+    "project_path" : "CODE/oneoff_setup_sqlite.R",
+    "properties" : {
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
