@@ -10,8 +10,8 @@ output:
     toc: yes
     toc_depth: 2
 params:
-    id_stock: "002460"
-    date_report: "2017-09-30"
+    id_stock: "300618"
+    date_report: "2017-12-31"
 ---
 
 ```{r setup, include=FALSE}
@@ -25,6 +25,7 @@ source("./CODE/LIB/lib_analy_finan_data.R")
 
 
 ```{r import_data, include=FALSE}
+num_qtr_back <- 8
 ###################### data assumptions #######################
 ## FIXED DB connection
 conn_db <- dbConnect(RSQLite::SQLite(), paste0("./DATA/CLEAN/", "db_finan_report.sqlite"))
@@ -53,8 +54,37 @@ stopifnot(identical(sort(names(df_bal_cuml)), sort(meta_bal$varR)))
 stopifnot(identical(sort(names(df_cash_cuml)), sort(meta_cash$varR)))
 stopifnot(identical(sort(names(df_pnl_cuml)), sort(meta_pnl$varR)))
 ### get last defined qtr back
-num_qtr_back <- 6
 date_qtr_back <- seq(as.Date(as.character(params$date_report)) + 1,
-                   length.out=as.numeric(num_qtr_back), by='-1 quarter') - 1 
+                   length.out=as.numeric(num_qtr_back) + 1, by='-1 quarter') - 1 
 date_qtr_back <- as.character(date_qtr_back)
+### get single qtr information
+## B/S
+df_bal_single <- filter(df_bal_cuml, F001D %in% date_qtr_back) %>% 
+  get_increment_from_cumulate("F001D") %>% 
+  slice(-1)
+## PnL
+df_pnl_single <- filter(df_pnl_cuml, F001D %in% date_qtr_back) %>% 
+  get_increment_from_cumulate("F001D") %>% 
+  slice(-1)
+## cash flow
+df_cash_single <- filter(df_cash_cuml, F001D %in% date_qtr_back) %>% 
+  get_increment_from_cumulate("F001D") %>% 
+  slice(-1)
+### cute cumulate into the chosen qtr
+df_bal_cuml <- filter(df_bal_cuml, F001D %in% df_bal_single$F001D)
+df_pnl_cuml <- filter(df_pnl_cuml, F001D %in% df_pnl_single$F001D)
+df_cash_cuml <- filter(df_cash_cuml, F001D %in% df_cash_single$F001D)
 ```
+
+# Overview
+
+## Revenue 
+
+```{r}
+
+```
+
+## PnL
+
+
+## Op. cash flow

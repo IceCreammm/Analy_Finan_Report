@@ -10,7 +10,7 @@ toupperNoSpace <- function(stringInput){
 }
  
  
- ## this function prepare RAW df into lst with data and meta according to input dict
+## this function prepare RAW df into lst with data and meta according to input dict
  clean_df_raw_by_dict <- function(inp_df_raw_data, inp_df_dict){
   ## we assume 1st ROW of inp_df_raw_data contains column names of clean df
   stopifnot(all(c("varR", "varXls") %in% names(inp_df_dict)))
@@ -41,7 +41,6 @@ toupperNoSpace <- function(stringInput){
 }
 
 
-
 ## collect lst of list with data and meta df
 col_data_meta_from_lst_of_lst <- function(inp_lst_of_lst_data_meta){
   len_lst <- length(inp_lst_of_lst_data_meta)
@@ -59,4 +58,24 @@ col_data_meta_from_lst_of_lst <- function(inp_lst_of_lst_data_meta){
     }
   }
   lst_res
+}
+
+
+## this function extrate increment from cumulative df. 
+## e.g., from cumulative Balalce sheets get single qtr data
+get_increment_from_cumulate <- function(inp_df, inp_nam_var_date){
+  stopifnot(inp_nam_var_date %in% names(inp_df))
+  ## Step 1: arrange inp_df according to given date 
+  inp_df <- inp_df %>% 
+    arrange_(.dots = inp_nam_var_date)
+  ## Step 2: inpur df names that are numeric variables
+  nam_var_num <- names(inp_df)[purrr::map_lgl(
+    names(inp_df), function(x) is.numeric(pull(inp_df, x)))] 
+  ## Step 3: prepare df with lag values, 
+  inp_df_lag <- inp_df %>% 
+    mutate_at(nam_var_num, lag) ## since the dates are sorted Step 1
+  ## return results
+  select(inp_df, one_of(setdiff(names(inp_df), nam_var_num))) %>% 
+    bind_cols(select(inp_df, one_of(nam_var_num)) - select(inp_df_lag, one_of(nam_var_num))) %>% 
+    select(names(inp_df))
 }
