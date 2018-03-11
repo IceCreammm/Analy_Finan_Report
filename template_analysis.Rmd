@@ -10,7 +10,7 @@ output:
     toc: yes
     toc_depth: 2
 params:
-    id_stock: "300618"
+    id_stock: "002460"
     date_report: "2017-12-31"
 ---
 
@@ -25,66 +25,277 @@ source("./CODE/LIB/lib_analy_finan_data.R")
 
 
 ```{r import_data, include=FALSE}
+########## overall 
 num_qtr_back <- 8
-###################### data assumptions #######################
+nam_var_date <- "F001D"
+nam_var_id_stock <- "SECCODE"
+nam_var_key <- c(nam_var_date, nam_var_id_stock)
+nam_var_op_income <- "PNL_F006N"
+nam_var_op_cost <- "PNL_F007N"
+nam_var_net_profit <- "PNL_F027N"
+nam_var_gross_profit <- "PNL_gross_profit"
+nam_var_net_op_cash <- "CF_F015N"
+nam_var_inventory <- "BAL_F015N"
+nam_var_advance_receipt <- "BAL_F043N"
+nam_var_interest_loan <- c("BAL_F039N", "BAL_F050N", "BAL_F053N", "BAL_F054N")
+###################### source data #######################
 ## FIXED DB connection
 conn_db <- dbConnect(RSQLite::SQLite(), paste0("./DATA/CLEAN/", "db_finan_report.sqlite"))
 ## collect metadata
 meta_bal <- as_tibble(dbReadTable(conn_db, "meta_ts_bal_sheet"))
 meta_pnl <- as_tibble(dbReadTable(conn_db, "meta_ts_income_stat"))
 meta_cash <- as_tibble(dbReadTable(conn_db, "meta_ts_cash_flow"))
-## balance sheet collected: CHECK c("SECCODE", "F001D")
+# checks assumption of prime key!
+stopifnot(identical(sort(nam_var_key), sort(meta_bal$varR[meta_bal$prime_key == 1])))
+stopifnot(identical(sort(nam_var_key), sort(meta_pnl$varR[meta_pnl$prime_key == 1])))
+stopifnot(identical(sort(nam_var_key), sort(meta_cash$varR[meta_cash$prime_key == 1])))
+## balance sheet collected: 
 df_bal_cuml <- dbGetQuery(conn_db, paste0("SELECT * FROM ", "tabl_ts_bal_sheet", 
                                           " WHERE SECCODE = '", params$id_stock, "'")) %>% 
   as_tibble() %>% 
-  arrange(F001D)
-## income statement collected: CHECK c("SECCODE", "F001D")
+  arrange_(.dots = nam_var_date)
+## income statement collected: 
 df_pnl_cuml <- dbGetQuery(conn_db, paste0("SELECT * FROM ", "tabl_ts_income_stat", 
                                           " WHERE SECCODE = '", params$id_stock, "'")) %>% 
   as_tibble() %>% 
-  arrange(F001D)
-## cash flow collected: CHECK c("SECCODE", "F001D")
+  arrange_(.dots = nam_var_date)
+## cash flow collected: 
 df_cash_cuml <- dbGetQuery(conn_db, paste0("SELECT * FROM ", "tabl_ts_cash_flow", 
                                           " WHERE SECCODE = '", params$id_stock, "'")) %>% 
   as_tibble() %>% 
-  arrange(F001D)
-############################################## assumptions ###
+  arrange_(.dots = nam_var_date)
+############################################## source data  ###
 ### checks
 stopifnot(identical(sort(names(df_bal_cuml)), sort(meta_bal$varR)))
 stopifnot(identical(sort(names(df_cash_cuml)), sort(meta_cash$varR)))
 stopifnot(identical(sort(names(df_pnl_cuml)), sort(meta_pnl$varR)))
-### get last defined qtr back
-date_qtr_back <- seq(as.Date(as.character(params$date_report)) + 1,
-                   length.out=as.numeric(num_qtr_back) + 1, by='-1 quarter') - 1 
-date_qtr_back <- as.character(date_qtr_back)
+### combine B/S, PnL and cash flow
+meta_ts_fin_cuml <- meta_bal %>% 
+  bind_rows(filter(meta_cash, grepl("CF_", varR))) %>% 
+  bind_rows(filter(meta_pnl, grepl("PNL_", varR)))
+df_ts_fin_cuml <- df_bal_cuml %>% 
+  left_join(select(df_pnl_cuml, one_of(nam_var_key), starts_with("PNL_")), by = nam_var_key) %>% 
+  left_join(select(df_cash_cuml, one_of(nam_var_key), starts_with("CF_")), by = nam_var_key) %>% 
+  mutate_at(meta_ts_fin_cuml$varR[toupper(meta_ts_fin_cuml$type) == "NUM"],
+            function(x) if_else(is.na(x), 0, x)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_op_income, " - ", nam_var_op_cost), "PNL_gross_profit"))
+meta_ts_fin_cuml <- bind_rows(
+  meta_ts_fin_cuml, 
+  data_frame(varR = "PNL_gross_profit", label_en = "Gross Profit", type = "num"))
+stopifnot(all(!duplicated(meta_ts_fin_cuml$varR)))
+stopifnot(identical(sort(names(df_ts_fin_cuml)), sort(meta_ts_fin_cuml$varR)))
 ### get single qtr information
-## B/S
-df_bal_single <- filter(df_bal_cuml, F001D %in% date_qtr_back) %>% 
-  get_increment_from_cumulate("F001D") %>% 
-  slice(-1)
-## PnL
-df_pnl_single <- filter(df_pnl_cuml, F001D %in% date_qtr_back) %>% 
-  get_increment_from_cumulate("F001D") %>% 
-  slice(-1)
-## cash flow
-df_cash_single <- filter(df_cash_cuml, F001D %in% date_qtr_back) %>% 
-  get_increment_from_cumulate("F001D") %>% 
-  slice(-1)
-### cute cumulate into the chosen qtr
-df_bal_cuml <- filter(df_bal_cuml, F001D %in% df_bal_single$F001D)
-df_pnl_cuml <- filter(df_pnl_cuml, F001D %in% df_pnl_single$F001D)
-df_cash_cuml <- filter(df_cash_cuml, F001D %in% df_cash_single$F001D)
+# note special treatment must be applied as 1st quarter is always starting point
+df_ts_fin_single <- get_increment_from_cumulate(df_ts_fin_cuml, nam_var_date) %>% 
+  filter_(.dots = paste0("!grepl('-03-31', ", nam_var_date, ")")) %>% 
+  bind_rows(filter_(df_ts_fin_cuml, .dots = paste0("grepl('-03-31', ", nam_var_date, ")"))) %>% 
+  arrange_(.dots = nam_var_date)
+### get last defined qtr back
+tmp_date_sel <- min(max(pull(df_ts_fin_cuml, nam_var_date)), as.character(params$date_report))
+date_qtr_back <- seq(as.Date(tmp_date_sel) + 1,
+                   length.out=as.numeric(num_qtr_back) , by='-1 quarter') - 1 
+date_qtr_back <- sort(as.character(date_qtr_back))
 ```
 
-# Overview
 
-## Revenue 
+
+# Overview {.tabset}
+
+We examine stock **`r params$id_stock`** based on the financial report at per **`r tmp_date_sel`**.
+
+## Cumulative YtD view
+
+```{r warning = FALSE}
+nam_var_2_plot <- c(nam_var_op_income, nam_var_net_profit, nam_var_net_op_cash)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
 
 ```{r}
-
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
 ```
 
-## PnL
+## Single Qtr 
+
+```{r}
+nam_var_2_plot <- c(nam_var_op_income, nam_var_net_profit, nam_var_net_op_cash)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+# Liquidity
+
+## Interest bearing liability  {.tabset}
+
+Interest bearing liability is the sum of `r paste(with(meta_ts_fin_cuml, label_en[match(nam_var_interest_loan, varR)]), collapse = ', ')`.
+
+### Cumulative YtD view
+
+```{r warning = FALSE}
+nam_var_2_plot <- nam_var_interest_loan
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " + "), "int_bear_liab")) %>% 
+  select(one_of(nam_var_date), int_bear_liab) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("int_bear_liab") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "int_bear_liab", label = "Interest bearing liability"), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
 
 
-## Op. cash flow
+
+### Single Qtr 
+
+```{r warning = FALSE}
+nam_var_2_plot <- nam_var_interest_loan
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " + "), "int_bear_liab")) %>% 
+  select(one_of(nam_var_date), int_bear_liab) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("int_bear_liab") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "int_bear_liab", label = "Interest bearing liability"), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+# Inventory
+
+## Inventory vs Operating Income {.tabset}
+
+Pitfall: inventory growth outpace of operating income
+
+<!-- Warning: high inventory with low gross profit might lead to inventory impairment (if downturn).  -->
+
+
+### Cumulative YtD view
+
+```{r warning = FALSE}
+nam_var_2_plot <- c(nam_var_inventory, nam_var_op_income)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+### Single Qtr 
+
+```{r warning = FALSE}
+nam_var_2_plot <- c(nam_var_inventory, nam_var_op_income)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+## Inventory and Advance Receipts  {.tabset}
+
+Potential: PnL management indicator. Deals might be finished, just book them in these accounts for near future income release. Check inventory details for confirmation.
+
+### Cumulative YtD view
+
+```{r warning = FALSE}
+nam_var_2_plot <- c(nam_var_inventory, nam_var_advance_receipt)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+### Single Qtr 
+
+```{r warning = FALSE}
+nam_var_2_plot <- c(nam_var_inventory, nam_var_advance_receipt)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+## Inventory vs gross margin
+
+##
+
+
+

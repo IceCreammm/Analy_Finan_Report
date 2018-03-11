@@ -74,8 +74,64 @@ get_increment_from_cumulate <- function(inp_df, inp_nam_var_date){
   ## Step 3: prepare df with lag values, 
   inp_df_lag <- inp_df %>% 
     mutate_at(nam_var_num, lag) ## since the dates are sorted Step 1
+  inp_df_lag[1, match(nam_var_num, names(inp_df_lag))] <- 0
   ## return results
   select(inp_df, one_of(setdiff(names(inp_df), nam_var_num))) %>% 
     bind_cols(select(inp_df, one_of(nam_var_num)) - select(inp_df_lag, one_of(nam_var_num))) %>% 
     select(names(inp_df))
+}
+
+
+## this function calculates QoQ and YoY change of variables nam_var_2_cal from dataframe inp_df 
+## Note that inp_df is assumed sorted according time (from history to current)
+cal_QoQ_YoY_of_df <- function(inp_df, nam_var_2_cal) {
+  stopifnot(all(nam_var_2_cal %in% names(inp_df)))
+  nam_var_2_gather <- names(inp_df)[!(names(inp_df) %in% nam_var_2_cal)]
+  df_qoq <- select(inp_df, one_of(nam_var_2_cal)) /
+    mutate_all(select(inp_df, one_of(nam_var_2_cal)), lag) -1
+  df_qoq <- rename_(df_qoq, .dots = set_names(nam_var_2_cal, paste0(nam_var_2_cal, "_QoQ")))
+  df_yoy <- select(inp_df, one_of(nam_var_2_cal)) /
+    mutate_all(select(inp_df, one_of(nam_var_2_cal)), function(x) lag(x, n=4)) - 1
+  df_yoy <- rename_(df_yoy, .dots = set_names(nam_var_2_cal, paste0(nam_var_2_cal, "_YoY")))
+  bind_cols(inp_df, df_yoy, df_qoq) %>% 
+    gather(key = "measure", value = "val", -one_of(nam_var_2_gather)) %>% 
+    mutate(type = if_else(grepl("._YoY$", measure), "YoY", 
+                          if_else(grepl("._QoQ$", measure), "QoQ", "value"))) %>% 
+    mutate(var = if_else(type == "QoQ", gsub("_QoQ", "", measure), 
+                         if_else(type == "YoY", gsub("_YoY", "", measure), measure))) %>% 
+    select(-measure) %>% 
+    spread(key = "type", value = "val") %>% 
+    arrange_(.dots = c("var", nam_var_2_gather)) %>% 
+    select(one_of(nam_var_2_gather), var, value, YoY, QoQ)
+}
+
+## this fucntion prodce ggplot and table for output of cal_QoQ_YoY_of_df function
+plot_df_val_QoQ_YoY <- function(inp_df_val_QoQ_YoY, inp_dict_label, inp_nam_var_date){
+  stopifnot(all(c(inp_nam_var_date, "var", "value", "YoY", "QoQ") %in% names(inp_df_val_QoQ_YoY)))
+  stopifnot(all(c("varR", "label") %in% names(inp_dict_label)))
+  ## ggplot object
+  obj_ggplot <- inp_df_val_QoQ_YoY %>%
+    left_join(select(inp_dict_label, varR, label), by=c("var" = "varR")) %>% 
+    mutate(value = round(value/1e6)) %>% 
+    ggplot(aes_string(x = inp_nam_var_date, y = "value")) +
+    geom_bar(stat="identity", fill = "darkblue") +
+    facet_wrap(~label, ncol = 1, scales="free_y") +
+    xlab("") + 
+    ylab("Value, mln") +
+    scale_y_continuous(label=scales::comma)
+  ## reshape table to view time series
+  df_res <- gather(inp_df_val_QoQ_YoY, type, value, -one_of(inp_nam_var_date, "var")) %>% 
+    mutate(measure = if_else(type == "value", var, paste0(var, "_", type)),
+           val = if_else(type == "value", scales::comma(round(value)), 
+                         paste0(round(value*100), "%"))) %>% ### !!! PRONE to ERROR HERE!!! QUICK FIX
+    select(one_of(inp_nam_var_date), measure, val) %>% 
+    spread(key = measure, value = val) %>% 
+    (function(x) as_tibble(cbind(.var = names(x), t(x)))) %>% 
+    (function(x) rename_(x, .dots = set_names(names(x)[-1], as.character(x[1, -1])))) %>% 
+    slice(-1) %>% 
+    left_join(select(inp_dict_label, varR, label), by=c(".var" = "varR")) %>% 
+    mutate(measure = if_else(is.na(label), .var, label)) %>% 
+    select(-label, -.var) %>% 
+    select(measure, everything())
+  lst(obj_ggplot = obj_ggplot, df_view_ts = df_res)
 }
