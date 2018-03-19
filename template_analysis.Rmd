@@ -35,9 +35,12 @@ nam_var_op_cost <- "PNL_F007N"
 nam_var_net_profit <- "PNL_F027N"
 nam_var_gross_profit <- "PNL_gross_profit"
 nam_var_net_op_cash <- "CF_F015N"
+nam_var_net_invest_cash <- "CF_F027N"
 nam_var_inventory <- "BAL_F015N"
 nam_var_advance_receipt <- "BAL_F043N"
 nam_var_interest_loan <- c("BAL_F039N", "BAL_F050N", "BAL_F053N", "BAL_F054N")
+nam_var_prepaid <- "BAL_F010N"
+nam_var_cash_goods_services <- "CF_F006N"
 ###################### source data #######################
 ## FIXED DB connection
 conn_db <- dbConnect(RSQLite::SQLite(), paste0("./DATA/CLEAN/", "db_finan_report.sqlite"))
@@ -143,6 +146,191 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
   fixedColumns = list(leftColumns = 1)), rownames = FALSE)
 ```
 
+
+# Key indicators
+
+## Cash flow related
+
+### Operational income quality  {.tabset}
+
+We examine the ratio between **`r with(meta_ts_fin_cuml, label_en[match(nam_var_cash_goods_services, varR)])`** and **`r with(meta_ts_fin_cuml, label_en[match(nam_var_op_income, varR)])`**
+
+销售收入的含金量指标:
+
+* 售收现比率 = 销售商品或提供劳务收到的现金 ／ 主营业务收入净额
+* 数值越大表明销售收现能力越强，销售含金量越高！高指标表明大量的预收账款！
+* 如果没有应收和预收，这个指标应该大于1，因为收到的现金包含了增值税
+
+反应公司寒暖的重要先行指标
+
+#### Cumulative YtD view
+
+```{r}
+nam_var_2_plot <- c(nam_var_cash_goods_services, nam_var_op_income)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
+  select(one_of(nam_var_date), ratio_cash_sales) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of sales cash flow over op. income"), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+#### Single Qtr 
+
+```{r}
+nam_var_2_plot <- c(nam_var_cash_goods_services, nam_var_op_income)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
+  select(one_of(nam_var_date), ratio_cash_sales) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of sales cash flow over op. income"), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+### Net profit quality  {.tabset}
+
+We examine the ratio between **`r with(meta_ts_fin_cuml, label_en[match(nam_var_net_op_cash, varR)])`** and **`r with(meta_ts_fin_cuml, label_en[match(nam_var_net_profit, varR)])`**
+
+重要指标：盈利的含金量指标
+
+* 盈利的现金比率（净利润含金量）= 经营活动产生的现金净流量 ／ 净利润
+* 数值越大，表明利润“含金量”越高（可以1为参照）
+
+短期来看：经营活动产生的现金净流量 可能是经营寒暖的先行指标，同时也是业绩变化的拐点指标！务必高度重视！
+
+中长期来看，公司股价和经营活动产生的现金净流量以及盈利现金比率相关性明显！
+
+* 经营活动产生的现金净流量 长期为正数 一定会强于长期为负的个股
+* 注意不能只看一个财报期！
+
+#### Cumulative YtD view
+
+```{r}
+nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_net_profit)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
+  select(one_of(nam_var_date), ratio_cash_sales) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of op. cash flow over net profit"), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+#### Single Qtr 
+
+```{r}
+nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_net_profit)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
+  select(one_of(nam_var_date), ratio_cash_sales) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of op. cash flow over net profit"), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+### Free cash flow  {.tabset}
+
+Free cash flow is defubed as the difference between **`r with(meta_ts_fin_cuml, label_en[match(nam_var_net_op_cash, varR)])`** and **`r with(meta_ts_fin_cuml, label_en[match(nam_var_net_invest_cash, varR)])`**
+
+自由现金流和企业估值相关性非常强！很重要！
+
+
+#### Cumulative YtD view
+
+```{r}
+nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_net_invest_cash)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " - "), "free_cash_flow")) %>% 
+  select(one_of(nam_var_date), free_cash_flow) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("free_cash_flow") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "free_cash_flow", label = "Ratio of op. cash flow over net profit"), 
+                      nam_var_date, inp_type_ratio = FALSE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+#### Single Qtr
+
+```{r}
+nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_net_invest_cash)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " - "), "free_cash_flow")) %>% 
+  select(one_of(nam_var_date), free_cash_flow) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("free_cash_flow") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "free_cash_flow", label = "Free cash flow"), 
+                      nam_var_date, inp_type_ratio = FALSE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
 # Liquidity
 
 ## Interest bearing liability  {.tabset}
@@ -194,6 +382,16 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
   searchHighlight = TRUE,
   fixedColumns = list(leftColumns = 1)), rownames = FALSE)
 ```
+
+
+
+
+
+
+
+
+
+
 
 
 # Inventory
@@ -293,9 +491,55 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
 
 
 
-## Inventory vs gross margin
+## Inventory vs gross margin 
 
-##
+
+
+# Account Prepaid {.tabset}
+
+Potential: a large increase might indicate potential boost in production. "预付原材料款" instead of "预防设备采购款".
+
+Pitfall: 大股东挪用公司资金的方式之一：表面上给供应商（审计很难核实）预付货款，实际上付给大股东的关联公司。虚报增存货是另一种方式. MUST compare to peers
+
+## Cumulative YtD view
+
+```{r warning = FALSE}
+nam_var_2_plot <- c(nam_var_prepaid)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+## Single Qtr 
+
+```{r warning = FALSE}
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+
+```{r}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
 
 
 

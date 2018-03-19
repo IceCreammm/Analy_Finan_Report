@@ -106,23 +106,33 @@ cal_QoQ_YoY_of_df <- function(inp_df, nam_var_2_cal) {
 }
 
 ## this fucntion prodce ggplot and table for output of cal_QoQ_YoY_of_df function
-plot_df_val_QoQ_YoY <- function(inp_df_val_QoQ_YoY, inp_dict_label, inp_nam_var_date){
+plot_df_val_QoQ_YoY <- function(inp_df_val_QoQ_YoY, inp_dict_label, inp_nam_var_date, inp_type_ratio = FALSE){
   stopifnot(all(c(inp_nam_var_date, "var", "value", "YoY", "QoQ") %in% names(inp_df_val_QoQ_YoY)))
   stopifnot(all(c("varR", "label") %in% names(inp_dict_label)))
   ## ggplot object
+  if (inp_type_ratio) {
+    inp_df_val_QoQ_YoY <- mutate(inp_df_val_QoQ_YoY, value = round(value, 2))
+  } else {
+    inp_df_val_QoQ_YoY <- mutate(inp_df_val_QoQ_YoY, value = round(value/1e6, 2))
+  }
   obj_ggplot <- inp_df_val_QoQ_YoY %>%
+    mutate_at(inp_nam_var_date, as.Date) %>% 
     left_join(select(inp_dict_label, varR, label), by=c("var" = "varR")) %>% 
-    mutate(value = round(value/1e6)) %>% 
     ggplot(aes_string(x = inp_nam_var_date, y = "value")) +
-    geom_bar(stat="identity", fill = "darkblue") +
+    geom_line(color='steelblue') +
+    geom_point(size = 1.5) +
+    #geom_bar(stat="identity", fill = "darkblue") +
     facet_wrap(~label, ncol = 1, scales="free_y") +
-    xlab("") + 
-    ylab("Value, mln") +
-    scale_y_continuous(label=scales::comma)
+    xlab("") 
+  if (!inp_type_ratio) {
+    obj_ggplot <- obj_ggplot + ylab("Value, mln") + scale_y_continuous(label=scales::comma)
+  } else{
+    obj_ggplot <- obj_ggplot + ylab("%") + scale_y_continuous(label=scales::percent)
+  }
   ## reshape table to view time series
   df_res <- gather(inp_df_val_QoQ_YoY, type, value, -one_of(inp_nam_var_date, "var")) %>% 
     mutate(measure = if_else(type == "value", var, paste0(var, "_", type)),
-           val = if_else(type == "value", scales::comma(round(value)), 
+           val = if_else(type == "value", scales::comma(round(value, 2)), 
                          paste0(round(value*100), "%"))) %>% ### !!! PRONE to ERROR HERE!!! QUICK FIX
     select(one_of(inp_nam_var_date), measure, val) %>% 
     spread(key = measure, value = val) %>% 
