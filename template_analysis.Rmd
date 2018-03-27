@@ -8,7 +8,7 @@ output:
     df_print: paged
     theme: cosmo
     toc: yes
-    toc_depth: 2
+    toc_depth: 3
 params:
     id_stock: "002460"
     date_report: "2017-12-31"
@@ -26,14 +26,17 @@ source("./CODE/LIB/lib_analy_finan_data.R")
 
 ```{r import_data, include=FALSE}
 ########## overall 
-num_qtr_back <- 8
+num_qtr_back <- 12
 nam_var_date <- "F001D"
 nam_var_id_stock <- "SECCODE"
 nam_var_key <- c(nam_var_date, nam_var_id_stock)
 nam_var_op_income <- "PNL_F006N"
 nam_var_op_cost <- "PNL_F007N"
+nam_var_op_profit <- "PNL_F018N"
 nam_var_net_profit <- "PNL_F027N"
 nam_var_gross_profit <- "PNL_gross_profit"
+nam_var_tax_income  <- "PNL_F025N"
+nam_var_invest_income <- "PNL_F015N"
 nam_var_net_op_cash <- "CF_F015N"
 nam_var_net_invest_cash <- "CF_F027N"
 nam_var_inventory <- "BAL_F015N"
@@ -147,7 +150,165 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
 ```
 
 
-# Key indicators
+# Financial indicators
+
+## Profitbility (盈利能力)
+
+### Sales margin（销售净利率） {.tabset}
+
+利润率，市最重要的盈利指标：一元销售能创造多少利润。
+
+* 不要扣除少数股东权益（因为，合并收入包含少数股东收入）
+* 别忘记扣非，扣补贴，扣除投资收益
+
+因此，这里的净利润定义为营业利润 - 所得税 - 投资收益
+
+
+
+**投资实战**：
+1）净利润率高，通常说明护城河较高，市场竞争力及成本控制力均较强：尤其长期能保持较高净利润率。不怕行业调整（有打价格战的资本）
+行业冬天一定要选毛利率高，净利润率高的公司，竞争能力强，有能力进一步调整整合行业的可能性。
+
+2）注意行业差别：
+高周转的行业（如，商超，餐饮）净利润率普遍较低，这类公司盈利能力取决于周转速度（餐饮业的翻台率）。
+
+3）除了某些护城河很高的行业（如，茅台），净利润率太高时往往并不是一个很好的投资时机点，有可能盛极而衰：
+
+* 因为太高意味着会吸引很多资本进入，从而增加供应，最终降低利润。
+* 太高的净利润率下游客户也可能会压价，尤其是当下游客户本身经营承压就会如此。（新能源汽车，警惕锂电池的高利润率）
+* 尤其是高利润率已经维持较长一段时间，更需要警惕外在风摧草动（下游客户经营基本面变化）
+
+4）净利润率偏低时往往可能意味着投资机会，尤其是与同行业或者行业历史数据比较：
+越低意味着弹性越大，要结合公司和财报其他指标具体分析。
+
+5）经营杠杆：
+对于重资产行业公司，由于固定费用占比很大，其销售收入对比净利润率影响很大（规模经济效应明显），因此需要高度关注收入变化情况，如何“风吹草动”都要引起足够重视，无论向上还是向下。比如汽车。
+规模经济：销售收入越大，利润率越高。
+
+#### Cumulative YtD view
+```{r}
+nam_var_2_plot <- c(nam_var_op_profit, nam_var_tax_income, nam_var_invest_income)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot, nam_var_op_income)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " - "), "net_op_profit")) %>% 
+  mutate_(.dots = set_names(paste0("net_op_profit / ", nam_var_op_income), "ratio_net_profit_sales")) %>% 
+  select(one_of(nam_var_date), ratio_net_profit_sales) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(c("ratio_net_profit_sales")) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = c("ratio_net_profit_sales", "net_op_profit"), 
+                                 label = c("Ratio of net profit over op. income", "Net profit")), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+#### Single Qtr 
+
+```{r}
+nam_var_2_plot <- c(nam_var_op_profit, nam_var_tax_income, nam_var_invest_income)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot, nam_var_op_income)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " - "), "net_op_profit")) %>% 
+  mutate_(.dots = set_names(paste0("net_op_profit / ", nam_var_op_income), "ratio_net_profit_sales")) %>% 
+  select(one_of(nam_var_date), ratio_net_profit_sales) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df(c("ratio_net_profit_sales")) %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = c("ratio_net_profit_sales", "net_op_profit"), 
+                                 label = c("Ratio of net profit over op. income", "Net profit")), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+
+
+### Gross margin (毛利率)  {.tabset}
+
+同利润率一样：
+
+* 除了某些护城河很高的行业，比如茅台，毛利率太高时往往并不是一个很好的投资时间点：
+
+    * 太高意味着会吸引很多资本进入，从而增加供应，最终降低毛利率
+    * 动力电池
+* 净利润率偏低时往往可能意味着投资机会，尤其是和同行业或者历史数据比较
+* 但毛利率偏低就要分析原因，谨防还有更低。尤其同时净利润率很低的，一不小心就会亏损（诺基亚）
+
+#### Cumulative YtD view
+
+```{r}
+nam_var_2_plot <- c(nam_var_gross_profit, nam_var_op_income)
+lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "gross_margin")) %>% 
+  select(one_of(nam_var_date), gross_margin) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("gross_margin") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "gross_margin", label = "Gross margin"), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+#### Single Qtr 
+
+```{r}
+nam_var_2_plot <- c(nam_var_gross_profit, nam_var_op_income)
+lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
+  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "gross_margin")) %>% 
+  select(one_of(nam_var_date), gross_margin) %>% 
+  arrange_(.dots = nam_var_date) %>% 
+  cal_QoQ_YoY_of_df("gross_margin") %>% 
+  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
+  plot_df_val_QoQ_YoY(data_frame(varR = "gross_margin", label = "Gross margin"), 
+                      nam_var_date, inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+```
+```{r warning = FALSE}
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+
+
+
+
+## Quality of profit (盈利质量)
+
+
+## （偿债能力）
+
+## （资产运营能力分析）
+
+## （成长能力分析）
+
 
 ## Cash flow related
 
