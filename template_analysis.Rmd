@@ -26,7 +26,8 @@ source("./CODE/LIB/lib_analy_finan_data.R")
 
 ```{r import_data, include=FALSE}
 ########## overall 
-num_qtr_back <- 12
+num_qtr_back <- 8
+nam_var_dict_label <- "label_cn"
 nam_var_date <- "F001D"
 nam_var_id_stock <- "SECCODE"
 nam_var_key <- c(nam_var_date, nam_var_id_stock)
@@ -34,7 +35,7 @@ nam_var_op_income <- "PNL_F006N"
 nam_var_op_cost <- "PNL_F007N"
 nam_var_op_profit <- "PNL_F018N"
 nam_var_net_profit <- "PNL_F027N"
-nam_var_gross_profit <- "PNL_gross_profit"
+nam_var_gross_profit <- "gross_profit"
 nam_var_tax_income  <- "PNL_F025N"
 nam_var_invest_income <- "PNL_F015N"
 nam_var_net_op_cash <- "CF_F015N"
@@ -45,6 +46,8 @@ nam_var_interest_loan <- c("BAL_F039N", "BAL_F050N", "BAL_F053N", "BAL_F054N")
 nam_var_prepaid <- "BAL_F010N"
 nam_var_cash_goods_services <- "CF_F006N"
 ###################### source data #######################
+## new data field dictionary
+dict_new_var <- readxl::read_excel(paste0("./DATA/", "dict_import_csv_R.xlsx"), sheet = "dict_new_var")
 ## FIXED DB connection
 conn_db <- dbConnect(RSQLite::SQLite(), paste0("./DATA/CLEAN/", "db_finan_report.sqlite"))
 ## collect metadata
@@ -75,6 +78,12 @@ df_cash_cuml <- dbGetQuery(conn_db, paste0("SELECT * FROM ", "tabl_ts_cash_flow"
 stopifnot(identical(sort(names(df_bal_cuml)), sort(meta_bal$varR)))
 stopifnot(identical(sort(names(df_cash_cuml)), sort(meta_cash$varR)))
 stopifnot(identical(sort(names(df_pnl_cuml)), sort(meta_pnl$varR)))
+```
+
+
+
+
+```{r prep_data_cuml_ts}
 ### combine B/S, PnL and cash flow
 meta_ts_fin_cuml <- meta_bal %>% 
   bind_rows(filter(meta_cash, grepl("CF_", varR))) %>% 
@@ -83,25 +92,115 @@ df_ts_fin_cuml <- df_bal_cuml %>%
   left_join(select(df_pnl_cuml, one_of(nam_var_key), starts_with("PNL_")), by = nam_var_key) %>% 
   left_join(select(df_cash_cuml, one_of(nam_var_key), starts_with("CF_")), by = nam_var_key) %>% 
   mutate_at(meta_ts_fin_cuml$varR[toupper(meta_ts_fin_cuml$type) == "NUM"],
-            function(x) if_else(is.na(x), 0, x)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_op_income, " - ", nam_var_op_cost), "PNL_gross_profit"))
-meta_ts_fin_cuml <- bind_rows(
-  meta_ts_fin_cuml, 
-  data_frame(varR = "PNL_gross_profit", label_en = "Gross Profit", type = "num"))
+            function(x) if_else(is.na(x), 0, x)) 
 stopifnot(all(!duplicated(meta_ts_fin_cuml$varR)))
 stopifnot(identical(sort(names(df_ts_fin_cuml)), sort(meta_ts_fin_cuml$varR)))
+```
+
+
+```{r prep_data_single_qtr}
 ### get single qtr information
 # note special treatment must be applied as 1st quarter is always starting point
 df_ts_fin_single <- get_increment_from_cumulate(df_ts_fin_cuml, nam_var_date) %>% 
   filter_(.dots = paste0("!grepl('-03-31', ", nam_var_date, ")")) %>% 
   bind_rows(filter_(df_ts_fin_cuml, .dots = paste0("grepl('-03-31', ", nam_var_date, ")"))) %>% 
   arrange_(.dots = nam_var_date)
+### extend data_field for further analysis
+lst_new_df_cuml <- get_new_var_2_df(df_ts_fin_cuml, meta_ts_fin_cuml, dict_new_var)
+lst_new_df_single <- get_new_var_2_df(df_ts_fin_single, meta_ts_fin_cuml, dict_new_var)
+## update DF
+df_ts_fin_cuml <- lst_new_df_cuml$data
+df_ts_fin_single <- lst_new_df_single$data
+meta_ts_fin_cuml <- lst_new_df_cuml$meta %>% 
+  mutate_(.dots = set_names(nam_var_dict_label, "label"))
 ### get last defined qtr back
 tmp_date_sel <- min(max(pull(df_ts_fin_cuml, nam_var_date)), as.character(params$date_report))
 date_qtr_back <- seq(as.Date(tmp_date_sel) + 1,
                    length.out=as.numeric(num_qtr_back) , by='-1 quarter') - 1 
 date_qtr_back <- sort(as.character(date_qtr_back))
 ```
+
+
+
+
+
+We examine stock **`r params$id_stock`** based on the financial report at per **`r tmp_date_sel`**.
+
+# Five Key Indicators
+
+
+## Income  {.tabset}
+Net operational cash flow, Advance receipts, Operational income
+
+
+
+### Cumulative YtD view
+```{r}
+nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_advance_receipt, nam_var_op_income)
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_cuml, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = FALSE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+### Single Qtr
+
+```{r}
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_single, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = FALSE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+## Margin  {.tabset}
+Growth margin; Net profit margin (w/o non-recurring PnL)
+
+
+
+
+
+
+
+
+# Growth ability
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -82,6 +82,41 @@ get_increment_from_cumulate <- function(inp_df, inp_nam_var_date){
 }
 
 
+## this function mutate existing df according to new_var_dictionary
+get_new_var_2_df <- function(inp_df_data, inp_df_meta, inp_dict_new_var){
+  ## checks
+  stopifnot(c("varR") %in% names(inp_df_meta))
+  stopifnot(c("varR", "formula") %in% names(inp_dict_new_var))
+  stopifnot(identical(sort(names(inp_df_data)), sort(inp_df_meta$varR)))
+  ## extend new data field
+  df_data <- inp_df_data
+  for (idx in seq_len(length(inp_dict_new_var$varR))) {
+    df_data <- mutate_(df_data, .dots = set_names(inp_dict_new_var$formula[idx], inp_dict_new_var$varR[idx]))
+  }
+  nam_varR_comm <- intersect(inp_df_meta$varR, inp_dict_new_var$varR)
+  df_meta <- bind_rows(filter(inp_df_meta, !(varR %in% nam_varR_comm)), inp_dict_new_var)
+  stopifnot(identical(sort(names(df_data)), sort(df_meta$varR)))
+  lst(data = df_data, meta = df_meta)
+}
+
+
+
+## this function plot and tab the equity ts from db
+get_plot_tab_equity_ts <- function(inp_df_ts, inp_nam_var_date, inp_nam_var_2_plot, inp_dict_label, 
+                                   inp_date_qtr_back = NULL, inp_type_ratio = FALSE) {
+  ## checks
+  stopifnot(all(c(inp_nam_var_date, inp_nam_var_2_plot) %in% names(inp_df_ts)))
+  ## prepare data for plot
+  df_res <- select(inp_df_ts, one_of(inp_nam_var_date, inp_nam_var_2_plot)) %>% 
+    select(one_of(inp_nam_var_date, inp_nam_var_2_plot)) %>% 
+    arrange_(.dots = inp_nam_var_date) %>% 
+    cal_QoQ_YoY_of_df(inp_nam_var_2_plot) 
+  if (!is.null(inp_date_qtr_back)) {
+    df_res <- filter_(df_res, .dots = paste0(inp_nam_var_date, " %in% inp_date_qtr_back"))
+  }
+  plot_df_val_QoQ_YoY(df_res, inp_dict_label, inp_nam_var_date, inp_type_ratio = inp_type_ratio)
+}
+
 ## this function calculates QoQ and YoY change of variables nam_var_2_cal from dataframe inp_df 
 ## Note that inp_df is assumed sorted according time (from history to current)
 cal_QoQ_YoY_of_df <- function(inp_df, nam_var_2_cal) {
@@ -104,6 +139,9 @@ cal_QoQ_YoY_of_df <- function(inp_df, nam_var_2_cal) {
     arrange_(.dots = c("var", nam_var_2_gather)) %>% 
     select(one_of(nam_var_2_gather), var, value, YoY, QoQ)
 }
+
+
+
 
 ## this fucntion prodce ggplot and table for output of cal_QoQ_YoY_of_df function
 plot_df_val_QoQ_YoY <- function(inp_df_val_QoQ_YoY, inp_dict_label, inp_nam_var_date, inp_type_ratio = FALSE){
