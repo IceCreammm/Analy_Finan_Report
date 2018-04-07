@@ -149,7 +149,7 @@ plot_df_val_QoQ_YoY <- function(inp_df_val_QoQ_YoY, inp_dict_label, inp_nam_var_
   stopifnot(all(c("varR", "label") %in% names(inp_dict_label)))
   ## ggplot object
   if (inp_type_ratio) {
-    inp_df_val_QoQ_YoY <- mutate(inp_df_val_QoQ_YoY, value = round(value, 2))
+    inp_df_val_QoQ_YoY <- mutate(inp_df_val_QoQ_YoY, value = round(value, 4))
   } else {
     inp_df_val_QoQ_YoY <- mutate(inp_df_val_QoQ_YoY, value = round(value/1e6, 2))
   }

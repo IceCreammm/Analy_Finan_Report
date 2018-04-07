@@ -45,6 +45,15 @@ nam_var_advance_receipt <- "BAL_F043N"
 nam_var_interest_loan <- c("BAL_F039N", "BAL_F050N", "BAL_F053N", "BAL_F054N")
 nam_var_prepaid <- "BAL_F010N"
 nam_var_cash_goods_services <- "CF_F006N"
+nam_var_gross_margin <- "gross_margin"
+nam_var_net_profit_recur <- "net_profit_recur" #扣非净利润
+nam_var_net_recur_profit_margin <- "net_recur_profit_margin" #扣非净利润率
+nam_var_roa_recur <- "roa_recur"
+nam_var_roe_recur <- "roe_recur"
+nam_var_period_cost_ratios <- c("sales_expense_2_op_income", "admin_expense_2_op_income", "finance_expense_2_op_income")
+nam_var_profit_quality <- c("net_op_cash_2_net_profit", "cash_sales_2_op_income", "net_profit_recur_2_net_profit")
+nam_var_liquidity_ratios <- c("current_ratio", "quick_ratio", "net_op_cash_2_current_liab")
+nam_var_liquidity_ratios_long <- c("asset_2_liab", "asset_2_equity")
 ###################### source data #######################
 ## new data field dictionary
 dict_new_var <- readxl::read_excel(paste0("./DATA/", "dict_import_csv_R.xlsx"), sheet = "dict_new_var")
@@ -130,13 +139,13 @@ We examine stock **`r params$id_stock`** based on the financial report at per **
 
 
 ## Income  {.tabset}
-Net operational cash flow, Advance receipts, Operational income
-
+Net operational cash flow, Advance receipts, Operational income, Net profit after reduction of non-recurring PnL; 
+`r with(meta_ts_fin_cuml, label_cn[varR == nam_var_net_profit_recur])` = `r with(meta_ts_fin_cuml, desc[varR == nam_var_net_profit_recur])`
 
 
 ### Cumulative YtD view
 ```{r}
-nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_advance_receipt, nam_var_op_income)
+nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_advance_receipt, nam_var_op_income, nam_var_net_profit_recur, nam_var_cash_goods_services)
 lst_res_2_show <- get_plot_tab_equity_ts(
   df_ts_fin_cuml, 
   nam_var_date, nam_var_2_plot, 
@@ -175,96 +184,8 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
 ## Margin  {.tabset}
 Growth margin; Net profit margin (w/o non-recurring PnL)
 
-
-
-
-
-
-
-
-# Growth ability
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Overview {.tabset}
-
-We examine stock **`r params$id_stock`** based on the financial report at per **`r tmp_date_sel`**.
-
-## Cumulative YtD view
-
-```{r warning = FALSE}
-nam_var_2_plot <- c(nam_var_op_income, nam_var_net_profit, nam_var_net_op_cash)
-lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-
-```{r}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
-
-## Single Qtr 
-
-```{r}
-nam_var_2_plot <- c(nam_var_op_income, nam_var_net_profit, nam_var_net_op_cash)
-lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df(nam_var_2_plot) %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(rename(select(meta_ts_fin_cuml, varR, label_en), label = label_en), nam_var_date)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-
-```{r warning = FALSE}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
-
-
-# Financial indicators
-
-## Profitbility (盈利能力)
-
-### Sales margin（销售净利率） {.tabset}
-
-利润率，市最重要的盈利指标：一元销售能创造多少利润。
-
-* 不要扣除少数股东权益（因为，合并收入包含少数股东收入）
-* 别忘记扣非，扣补贴，扣除投资收益
-
-因此，这里的净利润定义为营业利润 - 所得税 - 投资收益
-
-
-
 **投资实战**：
+
 1）净利润率高，通常说明护城河较高，市场竞争力及成本控制力均较强：尤其长期能保持较高净利润率。不怕行业调整（有打价格战的资本）
 行业冬天一定要选毛利率高，净利润率高的公司，竞争能力强，有能力进一步调整整合行业的可能性。
 
@@ -284,84 +205,115 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
 对于重资产行业公司，由于固定费用占比很大，其销售收入对比净利润率影响很大（规模经济效应明显），因此需要高度关注收入变化情况，如何“风吹草动”都要引起足够重视，无论向上还是向下。比如汽车。
 规模经济：销售收入越大，利润率越高。
 
-#### Cumulative YtD view
-```{r}
-nam_var_2_plot <- c(nam_var_op_profit, nam_var_tax_income, nam_var_invest_income)
-lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot, nam_var_op_income)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " - "), "net_op_profit")) %>% 
-  mutate_(.dots = set_names(paste0("net_op_profit / ", nam_var_op_income), "ratio_net_profit_sales")) %>% 
-  select(one_of(nam_var_date), ratio_net_profit_sales) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df(c("ratio_net_profit_sales")) %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = c("ratio_net_profit_sales", "net_op_profit"), 
-                                 label = c("Ratio of net profit over op. income", "Net profit")), 
-                      nam_var_date, inp_type_ratio = TRUE)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-```{r warning = FALSE}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
 
-#### Single Qtr 
-
-```{r}
-nam_var_2_plot <- c(nam_var_op_profit, nam_var_tax_income, nam_var_invest_income)
-lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot, nam_var_op_income)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " - "), "net_op_profit")) %>% 
-  mutate_(.dots = set_names(paste0("net_op_profit / ", nam_var_op_income), "ratio_net_profit_sales")) %>% 
-  select(one_of(nam_var_date), ratio_net_profit_sales) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df(c("ratio_net_profit_sales")) %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = c("ratio_net_profit_sales", "net_op_profit"), 
-                                 label = c("Ratio of net profit over op. income", "Net profit")), 
-                      nam_var_date, inp_type_ratio = TRUE)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-```{r warning = FALSE}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
-
-
-
-
-
-
-### Gross margin (毛利率)  {.tabset}
-
-同利润率一样：
+**毛利率**同净利润率一样：
 
 * 除了某些护城河很高的行业，比如茅台，毛利率太高时往往并不是一个很好的投资时间点：
-
     * 太高意味着会吸引很多资本进入，从而增加供应，最终降低毛利率
     * 动力电池
 * 净利润率偏低时往往可能意味着投资机会，尤其是和同行业或者历史数据比较
 * 但毛利率偏低就要分析原因，谨防还有更低。尤其同时净利润率很低的，一不小心就会亏损（诺基亚）
 
-#### Cumulative YtD view
-
+### Cumulative YtD view
 ```{r}
-nam_var_2_plot <- c(nam_var_gross_profit, nam_var_op_income)
-lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "gross_margin")) %>% 
-  select(one_of(nam_var_date), gross_margin) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df("gross_margin") %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = "gross_margin", label = "Gross margin"), 
-                      nam_var_date, inp_type_ratio = TRUE)
+nam_var_2_plot <- c(nam_var_gross_margin, nam_var_net_recur_profit_margin)
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_cuml, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
 plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
 ```
-```{r warning = FALSE}
+
+
+### Single Qtr
+```{r}
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_single, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+# Financial indicators
+
+## Profitbility (盈利能力)
+
+### ROA & ROE {.tabset}
+
+* **ROA**轻资产行业：
+
+    * 轻资产行业的总资产净利润率较高，由于资产轻，很难从银行贷款，因此有息负债率比较低
+    * 反过来，由于总资产净利润率越高，越不会与其他人分享，包括债权人（银行）和其他股东
+    * 因此，总资产净利率越高，有息负债（银行贷款）率越低，也较少增发再融资。
+
+* **ROA**重资产行业：
+
+    * 重资产行业总资产净利率相对较低，由于资产多，也能过获得更多银行贷款
+    * 反过来讲，由于总资产净利率较低，实际控制人往往希望更多出资方（银行和其他投资人）来分担风险
+    * 因此，总资产净利率较低，负债率较高，也经常增发在融资（银行是典型）
+
+
+**ROE** 高的行业往往是负债率高的行业，比如，银行、金融、地产（利用开发贷款和购房预付款）
+
+* 在同样的总资产回报率的情况下，负债率越高，相应地股东投的钱就少，因此ROE越高！
+* 理论上，ROE越高越好，尤其是同业比较，越高ROE意味着经营管理水平越高。
+* 但对投资而言，选择一个ROE更高或者在ROE高点买入并不一定是好投资。因为太多人在盯这个指标，和盯销售净利润率一样。
+* 另外，ROE和融资结构（财务杠杆）有很大关系，因此在分析时要具体分析：
+
+    * 有的公司将赚的现金流用于还贷而不是分红，未分配利润增加，相应增加股东权益，造成ROE可能不升反降，容易忽略其盈利增长。
+    * 有的国企长期不分红，股东权益基数大，ROE就显得很低。
+    * IPO之前ROE很高，但之后反而降低了，因为可以利用股市不停圈钱
+    * 海外市场资本市场发达，直接融资占比大，ROE反而相对较低
+
+
+#### Cumulative YtD view
+```{r}
+nam_var_2_plot <- c(nam_var_roa_recur, nam_var_roe_recur)
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_cuml, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+### Period cost ratios (期间费用率) {.tabset}
+
+**投资实战**：对比（与同行比、历史比）找出异常指标，从而分析潜力（如，费用率降低导致净利润提升。同样的，过低的费用率未来可能上升）
+
+#### Cumulative YtD view
+```{r}
+nam_var_2_plot <- nam_var_period_cost_ratios
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_cuml, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
 DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
   pageLength = 3,
   scrollX = TRUE,
@@ -371,20 +323,14 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
 
 
 #### Single Qtr 
-
 ```{r}
-nam_var_2_plot <- c(nam_var_gross_profit, nam_var_op_income)
-lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "gross_margin")) %>% 
-  select(one_of(nam_var_date), gross_margin) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df("gross_margin") %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = "gross_margin", label = "Gross margin"), 
-                      nam_var_date, inp_type_ratio = TRUE)
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_single, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
 plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-```{r warning = FALSE}
 DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
   pageLength = 3,
   scrollX = TRUE,
@@ -395,144 +341,171 @@ DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = 
 
 
 
+## Quality of profit (盈利质量) {.tabset}
+
+1）盈利现金比率 = 经营性现金净流量 ／ 净利润: 
+
+* 重要指标：盈利的含金量指标, 数值越大，表明利润“含金量”越高（可以1为参照, 其值一般大于1）
+* 短期来看：经营活动产生的现金净流量 可能是经营寒暖的先行指标，同时也是业绩变化的拐点指标！务必高度重视！
+* 中长期来看，公司股价和经营活动产生的现金净流量以及盈利现金比率相关性明显！
+* 经营活动产生的现金净流量 长期为正数 一定会强于长期为负的个股
+* 注意不能只看一个财报期！
+
+
+2）销售收现比率 = 销售商品或提供劳务收到的现金 ／ 销售收入:
+
+* 销售收入的含金量指标:
+* 数值越大表明销售收现能力越强，销售含金量越高！高指标表明大量的预收账款！
+* 如果没有应收和预收，这个指标应该大于1，因为收到的现金包含了增值税
+* 反应公司寒暖的重要先行指标
+
+
+3）扣非净利润／净利润
+数值越大表明利润越具备可持续性（主营业务贡献越大）。甚至要扣除补贴等项目！
 
 
 
+### Cumulative YtD view
+```{r}
+nam_var_2_plot <- nam_var_profit_quality
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_cuml, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
 
-## Quality of profit (盈利质量)
+
+### Single Qtr 
+```{r}
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_single, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
 
 
 ## （偿债能力）
 
-## （资产运营能力分析）
+### Short-term {.tabset}
+1）流动比率 =  流动资产 ／ 流动负债  
 
-## （成长能力分析）
+* 表明每一元的短期债务有多少短期可用资金作为偿债保障。预示公司短期内会不会有现金流危机。
+* 该指标应该大于1，不然企业短期偿债能力有问题。但，不存在统一标准的流动比率数值，不同行业差别明细。营业周期越短，合理的流动比率越低。
+
+2）速度比率 = 速动资产／流动负债:
+
+* 速动资产能够迅速（在较短时间内）变现的资产 = 货币资金 + 交易性金融资产 + 应收帐款。 或者 = 流动资产 — 存货 — 预付账款。速动比率和流动比率的差别在存货和预付账款。 
+* 该指标也是分析存货销售的重要参考。速动比率越高（通常 > 100%），代表公司越安全。在存货越高的行业，速动比率越重要。
+* 流动比率勉强，速动比率揭示**大量流动资产被压在存货**里面。
+
+
+3）现金流量比率 = 经营活动现金净流量 ／ 流动负债:
+
+* 表明每1元流动负债基于经营活动现金净流量保障程度，比率越高，偿债能力越强。
+
+#### Cumulative YtD view
+```{r}
+nam_var_2_plot <- nam_var_liquidity_ratios
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_cuml, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+#### Single Qtr 
+```{r}
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_single, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+
+### Long-term 杠杆 {.tabset}
+
+1）资产负债率 = 负债总额 ／ 资产总额: 总资产中有多少是欠别人的。
+
+* 注意行业差别：银行、地产（负债为银行的贷款，购房的预售款）、水电普遍较高。
+* 关注扣除预收账款（强势的卖方才有预收账款）后的资产负债率！
+* 重点关注：有息负债率；指企业负债当中需要支付利息的债务（银行贷款，应付债券等）占总负债的比率。
+
+2）权益:
+
+* 产权比率 = 总负债 ／ 股东权益
+* 权益乘数 = 总资产 ／ 股东权益；
+
+
+3) 现金流利息保障倍数 = 经营活动现金净流量 ／ 利息费用 （指标比较靠谱）
+
+
+表外因素
+* 可动用银行贷款指标；财报里面有披露
+* 表外负债：对外担保；财报有披露，如，西王集团和齐星互保
+* 信用：逾期等
+
+#### Cumulative YtD view
+```{r}
+nam_var_2_plot <- nam_var_liquidity_ratios_long
+lst_res_2_show <- get_plot_tab_equity_ts(
+  df_ts_fin_cuml, 
+  nam_var_date, nam_var_2_plot, 
+  select(meta_ts_fin_cuml, varR, label), 
+  inp_date_qtr_back = date_qtr_back, 
+  inp_type_ratio = TRUE)
+plotly::ggplotly(lst_res_2_show$obj_ggplot)
+DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
+  pageLength = 3,
+  scrollX = TRUE,
+  searchHighlight = TRUE,
+  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
+```
+
+
+
+
+
+## （资产运营能力分析）
 
 
 ## Cash flow related
-
-### Operational income quality  {.tabset}
-
-We examine the ratio between **`r with(meta_ts_fin_cuml, label_en[match(nam_var_cash_goods_services, varR)])`** and **`r with(meta_ts_fin_cuml, label_en[match(nam_var_op_income, varR)])`**
-
-销售收入的含金量指标:
-
-* 售收现比率 = 销售商品或提供劳务收到的现金 ／ 主营业务收入净额
-* 数值越大表明销售收现能力越强，销售含金量越高！高指标表明大量的预收账款！
-* 如果没有应收和预收，这个指标应该大于1，因为收到的现金包含了增值税
-
-反应公司寒暖的重要先行指标
-
-#### Cumulative YtD view
-
-```{r}
-nam_var_2_plot <- c(nam_var_cash_goods_services, nam_var_op_income)
-lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
-  select(one_of(nam_var_date), ratio_cash_sales) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of sales cash flow over op. income"), 
-                      nam_var_date, inp_type_ratio = TRUE)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-```{r warning = FALSE}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
-
-#### Single Qtr 
-
-```{r}
-nam_var_2_plot <- c(nam_var_cash_goods_services, nam_var_op_income)
-lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
-  select(one_of(nam_var_date), ratio_cash_sales) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of sales cash flow over op. income"), 
-                      nam_var_date, inp_type_ratio = TRUE)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-```{r warning = FALSE}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
-
-
-
-### Net profit quality  {.tabset}
-
-We examine the ratio between **`r with(meta_ts_fin_cuml, label_en[match(nam_var_net_op_cash, varR)])`** and **`r with(meta_ts_fin_cuml, label_en[match(nam_var_net_profit, varR)])`**
-
-重要指标：盈利的含金量指标
-
-* 盈利的现金比率（净利润含金量）= 经营活动产生的现金净流量 ／ 净利润
-* 数值越大，表明利润“含金量”越高（可以1为参照）
-
-短期来看：经营活动产生的现金净流量 可能是经营寒暖的先行指标，同时也是业绩变化的拐点指标！务必高度重视！
-
-中长期来看，公司股价和经营活动产生的现金净流量以及盈利现金比率相关性明显！
-
-* 经营活动产生的现金净流量 长期为正数 一定会强于长期为负的个股
-* 注意不能只看一个财报期！
-
-#### Cumulative YtD view
-
-```{r}
-nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_net_profit)
-lst_res_2_show <- select(df_ts_fin_cuml, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
-  select(one_of(nam_var_date), ratio_cash_sales) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of op. cash flow over net profit"), 
-                      nam_var_date, inp_type_ratio = TRUE)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-```{r warning = FALSE}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
-
-
-
-
-#### Single Qtr 
-
-```{r}
-nam_var_2_plot <- c(nam_var_net_op_cash, nam_var_net_profit)
-lst_res_2_show <- select(df_ts_fin_single, one_of(nam_var_date, nam_var_2_plot)) %>% 
-  mutate_(.dots = set_names(paste(nam_var_2_plot, collapse = " / "), "ratio_cash_sales")) %>% 
-  select(one_of(nam_var_date), ratio_cash_sales) %>% 
-  arrange_(.dots = nam_var_date) %>% 
-  cal_QoQ_YoY_of_df("ratio_cash_sales") %>% 
-  filter_(.dots = paste0(nam_var_date, " %in% date_qtr_back")) %>% 
-  plot_df_val_QoQ_YoY(data_frame(varR = "ratio_cash_sales", label = "Ratio of op. cash flow over net profit"), 
-                      nam_var_date, inp_type_ratio = TRUE)
-plotly::ggplotly(lst_res_2_show$obj_ggplot)
-```
-```{r warning = FALSE}
-DT::datatable(lst_res_2_show$df_view_ts, extensions = 'FixedColumns', options = list(
-  pageLength = 3,
-  scrollX = TRUE,
-  searchHighlight = TRUE,
-  fixedColumns = list(leftColumns = 1)), rownames = FALSE)
-```
-
-
 
 
 ### Free cash flow  {.tabset}
