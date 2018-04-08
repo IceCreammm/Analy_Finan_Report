@@ -60,6 +60,37 @@ col_data_meta_from_lst_of_lst <- function(inp_lst_of_lst_data_meta){
   lst_res
 }
 
+## this function clean RAW db data sourced from cninfo API directly
+clean_db_tabl_cninfo_api <- function(inp_conn, inp_nam_tabl, inp_dict){
+  nam_tabl_db <- dbListFields(inp_conn, inp_nam_tabl)
+  ## checks
+  stopifnot(c("varAPI", "varR") %in% names(inp_dict))
+  nam_var_tabl_consolid <- with(inp_dict, varAPI[varR == "F002V"])
+  stopifnot(c("index", nam_var_tabl_consolid) %in% nam_tabl_db)
+  stopifnot(identical("index", setdiff(nam_tabl_db, inp_dict$varAPI)))
+  nam_tabl_db_2_change <- nam_tabl_db[nam_tabl_db != 'index']
+  nam_tabl_varR <- with(inp_dict, varR[match(nam_tabl_db_2_change, varAPI)])
+  stopifnot(c("F001D", "SECCODE") %in% nam_tabl_varR)
+  #nam_varR_num <- intersect(nam_tabl_varR, with(inp_dict, varR[toupperNoSpace(type) == "NUM"]))
+  #nam_varR_date <- intersect(nam_tabl_varR, with(inp_dict, varR[toupperNoSpace(type) == "DATE"]))
+  ## select data and prepare
+  df_tabl <- dbGetQuery(inp_conn, paste0(
+    "SELECT * FROM ", inp_nam_tabl, " WHERE ", nam_var_tabl_consolid, " = '",'071001', "'")) %>% 
+    as_tibble() %>% 
+    select(-index) %>% 
+    rename_(.dots = set_names(nam_tabl_db_2_change, nam_tabl_varR)) %>% 
+    select(F001D, SECCODE, everything()) 
+  stopifnot(NROW(df_tabl) > 0)
+  if (NROW(df_tabl) != NROW(distinct(select(df_tabl, F001D, SECCODE)))){
+    df_tabl <- filter(df_tabl, F001D == ENDDATE)
+  }
+  stopifnot((NROW(df_tabl) == NROW(distinct(select(df_tabl, F001D, SECCODE)))))
+  meta <- filter(inp_dict, varR %in% names(df_tabl)) %>% 
+    mutate(prime_key = varR %in% c("F001D", "SECCODE")) %>% 
+    arrange(desc(prime_key))
+  lst(data = df_tabl, meta = meta)
+}
+
 
 ## this function extrate increment from cumulative df. 
 ## e.g., from cumulative Balalce sheets get single qtr data

@@ -99,9 +99,10 @@ meta_ts_fin_cuml <- meta_bal %>%
   bind_rows(filter(meta_pnl, grepl("PNL_", varR)))
 df_ts_fin_cuml <- df_bal_cuml %>% 
   left_join(select(df_pnl_cuml, one_of(nam_var_key), starts_with("PNL_")), by = nam_var_key) %>% 
-  left_join(select(df_cash_cuml, one_of(nam_var_key), starts_with("CF_")), by = nam_var_key) %>% 
-  mutate_at(meta_ts_fin_cuml$varR[toupper(meta_ts_fin_cuml$type) == "NUM"],
-            function(x) if_else(is.na(x), 0, x)) 
+  left_join(select(df_cash_cuml, one_of(nam_var_key), starts_with("CF_")), by = nam_var_key)
+## replace NA by 0
+tmp_nam_var_num <- meta_ts_fin_cuml$varR[toupper(meta_ts_fin_cuml$type) == "NUM"]
+df_ts_fin_cuml[tmp_nam_var_num][is.na(df_ts_fin_cuml[tmp_nam_var_num])] <- 0
 stopifnot(all(!duplicated(meta_ts_fin_cuml$varR)))
 stopifnot(identical(sort(names(df_ts_fin_cuml)), sort(meta_ts_fin_cuml$varR)))
 ```
